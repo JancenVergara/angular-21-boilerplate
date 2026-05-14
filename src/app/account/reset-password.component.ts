@@ -1,7 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { Location } from '@angular/common';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { first } from 'rxjs/operators';
+import { catchError, first, map, timeout } from 'rxjs/operators';
+import { of } from 'rxjs';
 
 import { AccountService, AlertService } from '@app/_services';
 import { MustMatch } from '@app/_helpers';
@@ -25,6 +27,8 @@ export class ResetPasswordComponent implements OnInit {
         private formBuilder: FormBuilder,
         private route: ActivatedRoute,
         private router: Router,
+        private location: Location,
+        private cdr: ChangeDetectorRef,
         private accountService: AccountService,
         private alertService: AlertService
     ) { }
@@ -37,23 +41,37 @@ export class ResetPasswordComponent implements OnInit {
             validator: MustMatch('password', 'confirmPassword')
         });
 
-        const token = this.route.snapshot.queryParams['token'];
-        this.router.navigate([], { relativeTo: this.route, replaceUrl: true });
+        const token = this.route.snapshot.queryParamMap.get('token');
+        if (!token) {
+            this.setTokenStatus(TokenStatus.Invalid);
+            return;
+        }
+
+        this.location.replaceState(this.router.url.split('?')[0]);
 
         this.accountService.validateResetToken(token)
-            .pipe(first())
-            .subscribe({
-                next: () => {
+            .pipe(
+                first(),
+                timeout(5000),
+                map(() => true),
+                catchError(() => of(false))
+            )
+            .subscribe(isValid => {
+                if (isValid) {
                     this.token = token;
-                    this.tokenStatus = TokenStatus.Valid;
-                },
-                error: () => {
-                    this.tokenStatus = TokenStatus.Invalid;
+                    this.setTokenStatus(TokenStatus.Valid);
+                } else {
+                    this.setTokenStatus(TokenStatus.Invalid);
                 }
             });
     }
 
     get f() { return this.form.controls; }
+
+    private setTokenStatus(status: TokenStatus) {
+        this.tokenStatus = status;
+        this.cdr.detectChanges();
+    }
 
     onSubmit() {
         this.submitted = true;
