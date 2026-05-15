@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { first } from 'rxjs/operators';
+import { finalize, first } from 'rxjs/operators';
 
 import { AccountService, AlertService } from '@app/_services';
 import { MustMatch } from '@app/_helpers';
@@ -51,6 +51,7 @@ export class UpdateComponent implements OnInit {
         this.submitting = true;
         this.accountService.update(this.account.id!, this.form.value)
             .pipe(first())
+            .pipe(finalize(() => this.submitting = false))
             .subscribe({
                 next: () => {
                     this.alertService.success('Update successful', { keepAfterRouteChange: true });
@@ -58,7 +59,6 @@ export class UpdateComponent implements OnInit {
                 },
                 error: (error: any) => {
                     this.alertService.error(error);
-                    this.submitting = false;
                 }
             });
     }
